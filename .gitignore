@@ -1,0 +1,13 @@
+# dependencies / build
+node_modules/
+dist/
+
+# secrets (절대 커밋 금지)
+.env
+supabase/.db-password
+supabase/.toss-secrets
+supabase/certs/
+*.pem
+
+# supabase CLI 로컬 캐시
+supabase/.temp/

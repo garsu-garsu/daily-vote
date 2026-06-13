@@ -1,0 +1,94 @@
+import {
+  loadFullScreenAd,
+  showFullScreenAd,
+} from "@apps-in-toss/web-framework";
+import { useToast } from "@toss/tds-mobile";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import { AD_GROUP_ID_REWARDED } from "../lib/env";
+import { EVENT, track } from "../lib/analytics";
+
+interface UseAdGateReturn {
+  /** 광고 환경이 준비됐는지 (앱/샌드박스 + 광고 로드 완료) */
+  ready: boolean;
+  /**
+   * 광고를 보여주고, 보상을 받으면 onReward 를 실행해요.
+   * 광고 미지원(브라우저/개발)이거나 AD_GROUP_ID_REWARDED 가 비어있으면 즉시 onReward 실행.
+   */
+  watchThen: (onReward: () => void, context?: string) => void;
+}
+
+/** "광고 보고 → 액션 실행" 게이트. (결과 즉시 보기 등) */
+export function useAdGate(): UseAdGateReturn {
+  const toast = useToast();
+  const [ready, setReady] = useState(false);
+  const supportedRef = useRef(false);
+  const unloadRef = useRef<(() => void) | null>(null);
+
+  const load = useCallback(() => {
+    if (AD_GROUP_ID_REWARDED === "") return;
+    try {
+      if (!loadFullScreenAd.isSupported()) return;
+      supportedRef.current = true;
+      unloadRef.current = loadFullScreenAd({
+        options: { adGroupId: AD_GROUP_ID_REWARDED },
+        onEvent: (e) => {
+          if (e.type === "loaded") setReady(true);
+        },
+        onError: (err) => console.error("광고 로드 실패:", err),
+      });
+    } catch (err) {
+      console.error("광고 환경 확인 실패:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    return () => unloadRef.current?.();
+  }, [load]);
+
+  const watchThen = useCallback(
+    (onReward: () => void, context?: string) => {
+      // 광고 미설정/미지원 환경 → 즉시 통과 (개발 편의)
+      if (AD_GROUP_ID_REWARDED === "" || !supportedRef.current) {
+        onReward();
+        return;
+      }
+      if (!ready) {
+        toast.openToast("광고를 준비 중이에요. 잠시 후 다시 시도해 주세요.");
+        load();
+        return;
+      }
+
+      let rewarded = false;
+      try {
+        showFullScreenAd({
+          options: { adGroupId: AD_GROUP_ID_REWARDED },
+          onEvent: (e) => {
+            if (e.type === "userEarnedReward") {
+              rewarded = true;
+              track(EVENT.adRewarded, { context: context ?? "" });
+            } else if (e.type === "dismissed") {
+              setReady(false);
+              load();
+              if (rewarded) onReward();
+            } else if (e.type === "failedToShow") {
+              setReady(false);
+              load();
+            }
+          },
+          onError: (err) => {
+            console.error("광고 표시 실패:", err);
+            setReady(false);
+            load();
+          },
+        });
+      } catch (err) {
+        console.error("광고 표시 실패:", err);
+      }
+    },
+    [ready, load, toast],
+  );
+
+  return { ready, watchThen };
+}
