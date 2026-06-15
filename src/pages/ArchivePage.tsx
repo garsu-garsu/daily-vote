@@ -2,6 +2,8 @@ import { BoardRow, Badge, Loader } from "@toss/tds-mobile";
 import { colors } from "@toss/tds-colors";
 import { useEffect, useState } from "react";
 import { ResultView } from "../components/ResultView";
+import { ResultBanner } from "../components/ResultBanner";
+import { useInterstitial } from "../hooks/useInterstitial";
 import { formatKorean, kstTodayString } from "../lib/kst";
 import { fetchPublishedQuestions } from "../data/questions";
 import { fetchResult } from "../data/results";
@@ -17,6 +19,7 @@ interface Row {
 export function ArchivePage() {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<Row[]>([]);
+  const showInterstitial = useInterstitial();
 
   useEffect(() => {
     let alive = true;
@@ -35,11 +38,12 @@ export function ArchivePage() {
         past.map((q, i) => ({ question: q, result: results[i], myChoice: votes[q.id] })),
       );
       setLoading(false);
+      if (past.length > 0) showInterstitial(); // 지난 결과 화면 진입 → 전면 1회
     })();
     return () => {
       alive = false;
     };
-  }, []);
+  }, [showInterstitial]);
 
   if (loading)
     return (
@@ -97,6 +101,9 @@ export function ArchivePage() {
           </BoardRow>
         );
       })}
+      <div style={{ marginTop: 16 }}>
+        <ResultBanner />
+      </div>
     </div>
   );
 }

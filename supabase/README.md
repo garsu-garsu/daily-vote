@@ -50,6 +50,7 @@ supabase secrets set \
   TOSS_DECRYPT_KEY=... TOSS_DECRYPT_AAD=...
 ```
 - `generate-token` / `login-me` 엔드포인트·응답 스키마, AES-GCM 복호화 형식은 콘솔 발급 정보에 맞춰 확인.
+- 복호화 키가 hex 로 발급되면 `TOSS_DECRYPT_KEY_ENCODING=hex` 를 함께 설정하세요(기본 base64).
 - 광고: 콘솔에서 daily-vote 앱의 보상형 광고 그룹 ID 발급 후 `.env`의 `VITE_AD_GROUP_ID_REWARDED`에 입력.
 
 ## 운영 명령

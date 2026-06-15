@@ -2,7 +2,9 @@ import { Badge, Button, Loader, useToast } from "@toss/tds-mobile";
 import { colors } from "@toss/tds-colors";
 import { useCallback, useEffect, useState } from "react";
 import { ResultView } from "../components/ResultView";
+import { ResultBanner } from "../components/ResultBanner";
 import { useAdGate } from "../hooks/useAdGate";
+import { useInterstitial } from "../hooks/useInterstitial";
 import { EVENT, track } from "../lib/analytics";
 import { formatKoreanWithDay, kstTodayString, timeUntilMidnight } from "../lib/kst";
 import { fetchTodayQuestion } from "../data/questions";
@@ -14,6 +16,7 @@ import type { Choice, Question, VoteResult } from "../types";
 export function TodayPage() {
   const toast = useToast();
   const ad = useAdGate();
+  const showInterstitial = useInterstitial();
 
   const [loading, setLoading] = useState(true);
   const [question, setQuestion] = useState<Question | null>(null);
@@ -35,17 +38,18 @@ export function TodayPage() {
       const votes = await fetchMyVotes();
       const choice = votes[q.id] ?? null;
       setMyChoice(choice);
-      // 과거 질문(=결과 공개)이면 결과를 바로 불러와요.
+      // 과거 질문(=결과 공개)이면 결과를 바로 불러와요. (광고 게이트 없는 결과 화면 → 전면 1회)
       if (q.publishDate < kstTodayString()) {
         setResult(await fetchResult(q.id).catch(() => null));
         setDetail(true);
+        showInterstitial();
       }
       if (alive) setLoading(false);
     })();
     return () => {
       alive = false;
     };
-  }, []);
+  }, [showInterstitial]);
 
   const handleVote = async (choice: Choice) => {
     if (question == null) return;
@@ -118,7 +122,10 @@ export function TodayPage() {
       {myChoice == null ? (
         <VoteButtons question={question} onVote={handleVote} />
       ) : result != null ? (
-        <ResultView question={question} result={result} myChoice={myChoice} showDetail={detail} />
+        <>
+          <ResultView question={question} result={result} myChoice={myChoice} showDetail={detail} />
+          <ResultBanner />
+        </>
       ) : (
         <LockedResult
           pick={myChoice === "A" ? question.optionA : question.optionB}

@@ -8,6 +8,7 @@
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY  (Supabase 기본 주입)
 //   TOSS_MTLS_CERT / TOSS_MTLS_KEY    : 콘솔 발급 mTLS 인증서/개인키 (PEM 전체)
 //   TOSS_DECRYPT_KEY / TOSS_DECRYPT_AAD : 개인정보 복호화 키/AAD (콘솔 발급)
+//   TOSS_DECRYPT_KEY_ENCODING : (선택) 복호화 키 인코딩 "hex" | "base64" (기본 base64)
 //   TOSS_API_BASE    : (선택) 기본값 https://apps-in-toss-api.toss.im
 //
 // 참고: https://developers-apps-in-toss.toss.im/login/develop.html
@@ -24,7 +25,14 @@ const DECRYPT_KEY = Deno.env.get("TOSS_DECRYPT_KEY") ?? "";
 const DECRYPT_AAD = Deno.env.get("TOSS_DECRYPT_AAD") ?? "";
 
 // 복호화 키 인코딩: 콘솔이 hex 로 주면 "hex", base64 면 "base64".
-const KEY_ENCODING: "hex" | "base64" = "base64";
+// 콘솔 발급 형식에 맞춰 TOSS_DECRYPT_KEY_ENCODING 으로 바꿀 수 있어요. (기본 base64)
+const KEY_ENCODING: "hex" | "base64" =
+  Deno.env.get("TOSS_DECRYPT_KEY_ENCODING") === "hex" ? "hex" : "base64";
+
+// Deno 런타임의 mTLS 클라이언트 생성 API (타입 정의에 없어 좁게 선언).
+interface DenoWithHttpClient {
+  createHttpClient?: (options: { cert: string; key: string }) => unknown;
+}
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -85,8 +93,8 @@ async function fetchTossUser(authorizationCode: string, referrer: string): Promi
   let client: unknown = undefined;
   if (MTLS_CERT !== "" && MTLS_KEY !== "") {
     try {
-      // deno-lint-ignore no-explicit-any
-      client = (Deno as any).createHttpClient({ cert: MTLS_CERT, key: MTLS_KEY });
+      const createHttpClient = (Deno as unknown as DenoWithHttpClient).createHttpClient;
+      client = createHttpClient?.({ cert: MTLS_CERT, key: MTLS_KEY });
     } catch (e) {
       console.error("mTLS 클라이언트 생성 실패(런타임 미지원일 수 있음):", e);
     }
