@@ -47,7 +47,7 @@ function App() {
           </div>
         ) : (
           <>
-            {tab === 0 && <TodayPage />}
+            {tab === 0 && <TodayPage profile={profile} onLogin={login} />}
             {tab === 1 && <ArchivePage />}
             {tab === 2 && <ReportPage profile={profile} onLogin={login} />}
           </>

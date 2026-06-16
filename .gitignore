@@ -1,6 +1,8 @@
 # dependencies / build
 node_modules/
 dist/
+.granite/
+*.ait
 
 # secrets (절대 커밋 금지)
 .env

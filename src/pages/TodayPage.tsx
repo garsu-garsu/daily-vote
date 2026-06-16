@@ -11,12 +11,32 @@ import { fetchTodayQuestion } from "../data/questions";
 import { fetchMyVotes, submitVote } from "../data/votes";
 import { fetchResult, fetchResultNow } from "../data/results";
 import { shareResult } from "../data/share";
-import type { Choice, Question, VoteResult } from "../types";
+import type { Choice, Profile, Question, VoteResult } from "../types";
 
-export function TodayPage() {
+interface Props {
+  profile: Profile | null;
+  onLogin: () => Promise<void>;
+}
+
+export function TodayPage({ profile, onLogin }: Props) {
   const toast = useToast();
   const ad = useAdGate();
   const showInterstitial = useInterstitial();
+  const [loggingIn, setLoggingIn] = useState(false);
+  const isGuest = profile?.tossUserKey == null;
+
+  const handleLogin = async () => {
+    setLoggingIn(true);
+    try {
+      await onLogin();
+      toast.openToast("토스 로그인 완료! 이제 연령·성별 분포에도 반영돼요.");
+    } catch (e) {
+      toast.openToast("로그인은 토스앱/샌드박스앱에서 동작해요");
+      console.error(e);
+    } finally {
+      setLoggingIn(false);
+    }
+  };
 
   const [loading, setLoading] = useState(true);
   const [question, setQuestion] = useState<Question | null>(null);
@@ -132,6 +152,9 @@ export function TodayPage() {
           adLabel={ad.ready ? "광고 보고 지금 결과 보기" : "지금 결과 보기"}
           onWatchAd={handleWatchAd}
           onShare={handleShare}
+          isGuest={isGuest}
+          loggingIn={loggingIn}
+          onLogin={handleLogin}
         />
       )}
     </div>
@@ -201,11 +224,17 @@ function LockedResult({
   adLabel,
   onWatchAd,
   onShare,
+  isGuest,
+  loggingIn,
+  onLogin,
 }: {
   pick: string;
   adLabel: string;
   onWatchAd: () => void;
   onShare: () => void;
+  isGuest: boolean;
+  loggingIn: boolean;
+  onLogin: () => void;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -241,6 +270,32 @@ function LockedResult({
       <Button display="full" size="large" color="dark" variant="weak" onClick={onShare}>
         결과 카드 공유하고 보기
       </Button>
+
+      {isGuest && (
+        <button
+          onClick={onLogin}
+          disabled={loggingIn}
+          style={{
+            appearance: "none",
+            border: `1px solid ${colors.blue200}`,
+            background: colors.blue50,
+            borderRadius: 12,
+            padding: "14px 16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            cursor: loggingIn ? "default" : "pointer",
+            width: "100%",
+            opacity: loggingIn ? 0.6 : 1,
+          }}
+        >
+          <span style={{ fontSize: 15 }}>🇹</span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: colors.blue600 }}>
+            {loggingIn ? "로그인 중..." : "토스로 로그인하고 연령·성별 분포까지 보기"}
+          </span>
+        </button>
+      )}
     </div>
   );
 }
