@@ -51,7 +51,7 @@ export function ReportPage({ profile, onLogin }: Props) {
 
   return (
     <div style={{ padding: "8px 20px 32px", display: "flex", flexDirection: "column", gap: 20 }}>
-      <p style={{ margin: 0, fontSize: 14, color: colors.grey500 }}>나의 취향 통계를 모아봤어요.</p>
+      <p style={{ margin: 0, fontSize: 14, color: colors.grey500 }}>내가 다수파였는지 소수파였는지, 투표 성향을 모아봤어요.</p>
 
       <div
         style={{

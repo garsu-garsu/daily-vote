@@ -1,3 +1,4 @@
+import { ensureSession } from "./authClient";
 import { supabase } from "../lib/supabase";
 import type { Choice } from "../types";
 
@@ -13,8 +14,8 @@ export async function fetchMyVotes(): Promise<Record<string, Choice>> {
 /** 투표 제출. user_id는 RLS에서 auth.uid()로 강제돼요. */
 export async function submitVote(questionId: string, choice: Choice): Promise<void> {
   const { data: auth } = await supabase.auth.getUser();
-  const uid = auth.user?.id;
-  if (uid == null) throw new Error("로그인이 필요해요.");
+  // 세션이 아직 준비 중이어도 투표를 놓치지 않게 여기서 보장해요.
+  const uid = auth.user?.id ?? (await ensureSession()).id;
 
   const { error } = await supabase
     .from("votes")

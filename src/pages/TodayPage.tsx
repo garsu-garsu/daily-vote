@@ -6,8 +6,14 @@ import { ResultBanner } from "../components/ResultBanner";
 import { useAdGate } from "../hooks/useAdGate";
 import { useInterstitial } from "../hooks/useInterstitial";
 import { EVENT, track } from "../lib/analytics";
-import { formatKoreanWithDay, kstTodayString, timeUntilMidnight } from "../lib/kst";
-import { fetchTodayQuestion } from "../data/questions";
+import {
+  formatKorean,
+  formatKoreanWithDay,
+  kstTodayString,
+  timeUntilMidnight,
+} from "../lib/kst";
+import { buildShareMessage } from "../lib/resultCopy";
+import { fetchPublishedQuestions, fetchTodayQuestion } from "../data/questions";
 import { fetchMyVotes, submitVote } from "../data/votes";
 import { fetchResult, fetchResultNow } from "../data/results";
 import { shareResult } from "../data/share";
@@ -42,7 +48,7 @@ export function TodayPage({ profile, onLogin }: Props) {
   const [question, setQuestion] = useState<Question | null>(null);
   const [myChoice, setMyChoice] = useState<Choice | null>(null);
   const [result, setResult] = useState<VoteResult | null>(null);
-  const [detail, setDetail] = useState(false); // 광고/공유로 상세 분포 잠금 해제
+  const [detail, setDetail] = useState(false); // 광고로 연령·성별 상세 분포 잠금 해제
 
   const isToday = question != null && question.publishDate >= kstTodayString();
 
@@ -55,24 +61,44 @@ export function TodayPage({ profile, onLogin }: Props) {
         return;
       }
       setQuestion(q);
-      const votes = await fetchMyVotes();
+      if (alive) setLoading(false); // 질문부터 바로 보여줘요 (투표까지 3초)
+
+      const votes = await fetchMyVotes().catch(() => ({}) as Record<string, Choice>);
+      if (!alive) return;
       const choice = votes[q.id] ?? null;
       setMyChoice(choice);
-      // 과거 질문(=결과 공개)이면 결과를 바로 불러와요. (광고 게이트 없는 결과 화면 → 전면 1회)
-      if (q.publishDate < kstTodayString()) {
-        setResult(await fetchResult(q.id).catch(() => null));
+
+      const past = q.publishDate < kstTodayString();
+      if (past) {
+        // 지난 질문(=결과 공개)이면 상세 분포까지 바로. (광고 게이트 없는 결과 화면 → 전면 1회)
+        // 아직 집계 전이면 즉시 집계로 대체해요.
+        const r = await fetchResult(q.id).catch(() => null);
+        setResult(r ?? (await fetchResultNow(q.id).catch(() => null)));
         setDetail(true);
         showInterstitial();
+      } else if (choice != null) {
+        // 이미 투표했으면 지금까지 모인 전국 결과를 바로 보여줘요.
+        setResult(await fetchResultNow(q.id).catch(() => null));
       }
-      if (alive) setLoading(false);
     })();
     return () => {
       alive = false;
     };
   }, [showInterstitial]);
 
-  const handleVote = async (choice: Choice) => {
+  /** 지금까지 모인 전국 결과를 불러와요. (투표 직후 / 실패 시 다시 시도) */
+  const reloadResult = useCallback(async () => {
     if (question == null) return;
+    const r = await fetchResultNow(question.id).catch(() => null);
+    if (r == null) {
+      toast.openToast("결과를 불러오지 못했어요.");
+      return;
+    }
+    setResult(r);
+  }, [question, toast]);
+
+  const handleVote = async (choice: Choice) => {
+    if (question == null || myChoice != null) return; // 연타로 두 번 제출되지 않게
     setMyChoice(choice); // 낙관적 반영
     try {
       await submitVote(question.id, choice);
@@ -81,39 +107,31 @@ export function TodayPage({ profile, onLogin }: Props) {
       setMyChoice(null);
       toast.openToast("투표에 실패했어요. 잠시 후 다시 시도해 주세요.");
       console.error(e);
+      return;
     }
+    // 투표 직후 바로 전국 결과 공개 — 연령·성별 상세 분포만 광고 뒤에 남겨요.
+    await reloadResult();
+    track(EVENT.resultViewed, { question_id: question.id, gate: "vote" });
   };
 
-  const revealNow = useCallback(
-    async (gate: "ad" | "share") => {
-      if (question == null) return;
-      const r = await fetchResultNow(question.id).catch(() => null);
-      if (r == null) {
-        toast.openToast("결과를 불러오지 못했어요.");
-        return;
-      }
-      setResult(r);
-      setDetail(true);
-      track(EVENT.resultViewed, { question_id: question.id, gate });
-    },
-    [question, toast],
-  );
+  const revealDetail = useCallback(async () => {
+    if (question == null) return;
+    const r = await fetchResultNow(question.id).catch(() => null);
+    if (r != null) setResult(r);
+    setDetail(true);
+    track(EVENT.resultViewed, { question_id: question.id, gate: "ad" });
+  }, [question]);
 
-  const handleWatchAd = () => ad.watchThen(() => revealNow("ad"), "result");
+  const handleWatchAd = () => ad.watchThen(revealDetail, "detail");
 
   const handleShare = async () => {
     if (question == null || myChoice == null) return;
-    const r = result ?? (await fetchResultNow(question.id).catch(() => null));
-    const mine = r ? (myChoice === "A" ? r.percentA : r.percentB) : null;
-    const pick = myChoice === "A" ? question.optionA : question.optionB;
-    const msg =
-      mine != null && mine < 50
-        ? `[오늘의 다수결] "${question.title}"\n난 ${pick} — ${mine}% 소수파였어요 😎\n당신의 선택은?`
-        : `[오늘의 다수결] "${question.title}"\n난 ${pick} 골랐어요. 당신의 선택은?`;
-    const shared = await shareResult(msg);
-    if (!shared) toast.openToast("공유는 토스앱/샌드박스앱에서 동작해요");
+    const shared = await shareResult(buildShareMessage(question, myChoice, result));
+    if (!shared) {
+      toast.openToast("공유는 토스앱/샌드박스앱에서 동작해요");
+      return;
+    }
     track(EVENT.shareCompleted, { context: "result" });
-    await revealNow("share");
   };
 
   if (loading) return <Centered><Loader size="medium" /></Centered>;
@@ -131,7 +149,8 @@ export function TodayPage({ profile, onLogin }: Props) {
           {question.category}
         </Badge>
         <span style={{ fontSize: 13, color: colors.grey500 }}>
-          {formatKoreanWithDay(question.publishDate)} {isToday ? "오늘의 질문" : "지난 질문"}
+          {formatKoreanWithDay(question.publishDate)}{" "}
+          {isToday ? "오늘의 밸런스 게임" : "지난 질문"}
         </span>
       </div>
 
@@ -141,21 +160,70 @@ export function TodayPage({ profile, onLogin }: Props) {
 
       {myChoice == null ? (
         <VoteButtons question={question} onVote={handleVote} />
-      ) : result != null ? (
+      ) : result == null ? (
+        <div
+          style={{
+            padding: "32px 20px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <Loader size="small" />
+          <button
+            onClick={() => void reloadResult()}
+            style={{
+              appearance: "none",
+              border: "none",
+              background: "none",
+              fontSize: 13,
+              color: colors.grey500,
+              textDecoration: "underline",
+              cursor: "pointer",
+            }}
+          >
+            결과가 안 보이면 다시 시도
+          </button>
+        </div>
+      ) : (
         <>
           <ResultView question={question} result={result} myChoice={myChoice} showDetail={detail} />
+
+          <ShareCta onShare={handleShare} />
+
+          {!detail && (
+            <Button display="full" size="large" color="dark" variant="weak" onClick={handleWatchAd}>
+              {ad.ready ? "광고 보고 연령대·성별 분포까지 보기" : "연령대·성별 분포까지 보기"}
+            </Button>
+          )}
+
+          {isGuest && (
+            <LoginUpsell loggingIn={loggingIn} onLogin={handleLogin} />
+          )}
+
+          {isToday && (
+            <div
+              style={{
+                padding: "14px 16px",
+                borderRadius: 12,
+                backgroundColor: colors.blue50,
+                fontSize: 14,
+                color: colors.blue600,
+                textAlign: "center",
+              }}
+            >
+              내일 0시에 새 질문이 올라와요 · {timeUntilMidnight()} 남았어요
+            </div>
+          )}
+
+          <PreviousResult />
           <ResultBanner />
+
+          <div style={{ fontSize: 12, color: colors.grey400, lineHeight: 1.6 }}>
+            결과는 이 투표에 참여한 분들의 응답을 모은 것이라 실제 여론과는 달라요.
+          </div>
         </>
-      ) : (
-        <LockedResult
-          pick={myChoice === "A" ? question.optionA : question.optionB}
-          adLabel={ad.ready ? "광고 보고 지금 결과 보기" : "지금 결과 보기"}
-          onWatchAd={handleWatchAd}
-          onShare={handleShare}
-          isGuest={isGuest}
-          loggingIn={loggingIn}
-          onLogin={handleLogin}
-        />
       )}
     </div>
   );
@@ -164,6 +232,108 @@ export function TodayPage({ profile, onLogin }: Props) {
 function Centered({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ padding: "64px 20px", display: "flex", justifyContent: "center" }}>{children}</div>
+  );
+}
+
+function ShareCta({ onShare }: { onShare: () => void }) {
+  return (
+    <div
+      style={{
+        padding: 18,
+        borderRadius: 16,
+        backgroundColor: colors.grey50,
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+      }}
+    >
+      <div style={{ fontSize: 16, fontWeight: 800, color: colors.grey800, textAlign: "center" }}>
+        친구는 어느 쪽일까요?
+      </div>
+      <div style={{ fontSize: 13, color: colors.grey600, textAlign: "center", lineHeight: 1.5 }}>
+        오늘 질문과 내 선택을 그대로 보내서 물어볼 수 있어요.
+      </div>
+      <Button display="full" size="large" onClick={onShare}>
+        결과 카드 공유하기
+      </Button>
+    </div>
+  );
+}
+
+function LoginUpsell({ loggingIn, onLogin }: { loggingIn: boolean; onLogin: () => void }) {
+  return (
+    <button
+      onClick={onLogin}
+      disabled={loggingIn}
+      style={{
+        appearance: "none",
+        border: `1px solid ${colors.blue200}`,
+        background: colors.blue50,
+        borderRadius: 12,
+        padding: "14px 16px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        cursor: loggingIn ? "default" : "pointer",
+        width: "100%",
+        opacity: loggingIn ? 0.6 : 1,
+      }}
+    >
+      <span style={{ fontSize: 15 }}>🇹</span>
+      <span style={{ fontSize: 14, fontWeight: 600, color: colors.blue600 }}>
+        {loggingIn ? "로그인 중..." : "토스로 로그인하고 연령·성별 분포까지 보기"}
+      </span>
+    </button>
+  );
+}
+
+/** 바로 앞 회차 결과 — "매일 새 질문이 온다"를 결과 화면에서 알려주는 자리. */
+function PreviousResult() {
+  const [row, setRow] = useState<{ question: Question; result: VoteResult } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const questions = await fetchPublishedQuestions().catch(() => [] as Question[]);
+      const prev = questions.find((q) => q.publishDate < kstTodayString());
+      if (prev == null) return;
+      const result = await fetchResult(prev.id).catch(() => null);
+      if (alive && result != null && result.total > 0) setRow({ question: prev, result });
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (row == null) return null;
+  const { question, result } = row;
+  const aWins = result.percentA >= result.percentB;
+  const winner = aWins ? question.optionA : question.optionB;
+  const emoji = aWins ? question.emojiA : question.emojiB;
+  const percent = Math.max(result.percentA, result.percentB);
+
+  return (
+    <div
+      style={{
+        padding: 16,
+        borderRadius: 16,
+        backgroundColor: colors.grey50,
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+      }}
+    >
+      <span style={{ fontSize: 13, color: colors.grey500 }}>
+        {formatKorean(question.publishDate)} 다수결 결과
+      </span>
+      <span style={{ fontSize: 15, fontWeight: 700, color: colors.grey800 }}>
+        {question.title}
+      </span>
+      <span style={{ fontSize: 14, color: colors.grey600 }}>
+        {emoji} {percent}%가 '{winner}'를 골랐어요 · 총 {result.total.toLocaleString()}명 참여
+      </span>
+    </div>
   );
 }
 
@@ -177,7 +347,7 @@ function VoteButtons({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <p style={{ margin: 0, fontSize: 14, color: colors.grey500 }}>
-        3초면 충분해요. 하나만 골라주세요.
+        3초면 충분해요. 하나만 고르면 전국 투표 결과가 바로 나와요.
       </p>
       <OptionButton emoji={question.emojiA} label={question.optionA} color={colors.blue500} onClick={() => onVote("A")} />
       <OptionButton emoji={question.emojiB} label={question.optionB} color={colors.red500} onClick={() => onVote("B")} />
@@ -216,86 +386,5 @@ function OptionButton({
       <span style={{ fontSize: 32 }}>{emoji}</span>
       <span style={{ fontSize: 20, fontWeight: 700, color }}>{label}</span>
     </button>
-  );
-}
-
-function LockedResult({
-  pick,
-  adLabel,
-  onWatchAd,
-  onShare,
-  isGuest,
-  loggingIn,
-  onLogin,
-}: {
-  pick: string;
-  adLabel: string;
-  onWatchAd: () => void;
-  onShare: () => void;
-  isGuest: boolean;
-  loggingIn: boolean;
-  onLogin: () => void;
-}) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div
-        style={{
-          padding: 20,
-          borderRadius: 16,
-          backgroundColor: colors.grey50,
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-          alignItems: "center",
-          textAlign: "center",
-        }}
-      >
-        <span style={{ fontSize: 40 }}>🗳️</span>
-        <div style={{ fontSize: 16, fontWeight: 700, color: colors.grey800 }}>
-          투표 완료! '{pick}' 선택했어요
-        </div>
-        <div style={{ fontSize: 14, color: colors.grey600 }}>결과는 내일 0시에 공개돼요</div>
-        <div style={{ fontSize: 13, color: colors.grey500 }}>
-          공개까지 약 {timeUntilMidnight()} 남았어요
-        </div>
-      </div>
-
-      <p style={{ margin: 0, fontSize: 14, color: colors.grey500, textAlign: "center" }}>
-        기다리거나, 지금 바로 결과를 확인하세요
-      </p>
-
-      <Button display="full" size="large" onClick={onWatchAd}>
-        {adLabel}
-      </Button>
-      <Button display="full" size="large" color="dark" variant="weak" onClick={onShare}>
-        결과 카드 공유하고 보기
-      </Button>
-
-      {isGuest && (
-        <button
-          onClick={onLogin}
-          disabled={loggingIn}
-          style={{
-            appearance: "none",
-            border: `1px solid ${colors.blue200}`,
-            background: colors.blue50,
-            borderRadius: 12,
-            padding: "14px 16px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
-            cursor: loggingIn ? "default" : "pointer",
-            width: "100%",
-            opacity: loggingIn ? 0.6 : 1,
-          }}
-        >
-          <span style={{ fontSize: 15 }}>🇹</span>
-          <span style={{ fontSize: 14, fontWeight: 600, color: colors.blue600 }}>
-            {loggingIn ? "로그인 중..." : "토스로 로그인하고 연령·성별 분포까지 보기"}
-          </span>
-        </button>
-      )}
-    </div>
   );
 }

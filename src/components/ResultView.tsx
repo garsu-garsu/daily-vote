@@ -1,5 +1,6 @@
 import { Badge } from "@toss/tds-mobile";
 import { colors } from "@toss/tds-colors";
+import { MIN_SAMPLE } from "../lib/resultCopy";
 import type { Choice, Question, VoteResult } from "../types";
 
 interface Props {
@@ -146,7 +147,7 @@ export function ResultView({ question, result, myChoice, showDetail = false }: P
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {mine != null && result.total > 0 && (
+      {mine != null && result.total >= MIN_SAMPLE && (
         <div
           style={{
             display: "flex",
@@ -169,9 +170,11 @@ export function ResultView({ question, result, myChoice, showDetail = false }: P
       <Bar question={question} percentA={result.percentA} myChoice={myChoice} />
 
       <div style={{ fontSize: 13, color: colors.grey500 }}>
-        {result.total > 0
-          ? `총 ${result.total.toLocaleString()}명 참여`
-          : "아직 집계 전이에요 — 첫 투표의 주인공이 되어보세요"}
+        {result.total === 0
+          ? "아직 집계 전이에요 — 첫 투표의 주인공이 되어보세요"
+          : result.total < MIN_SAMPLE
+            ? `총 ${result.total}명 참여 · 표가 더 모이면 비율이 달라져요`
+            : `총 ${result.total.toLocaleString()}명 참여`}
       </div>
 
       {showDetail && result.total > 0 && (

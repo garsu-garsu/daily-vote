@@ -62,7 +62,7 @@ export function ArchivePage() {
   return (
     <div style={{ padding: "8px 20px 32px", display: "flex", flexDirection: "column", gap: 4 }}>
       <p style={{ margin: "0 0 8px", fontSize: 14, color: colors.grey500 }}>
-        지난 다수결 결과를 다시 볼 수 있어요.
+        지난 밸런스 게임 투표 결과예요. 매일 0시에 새 질문이 하나씩 올라와요.
       </p>
       {rows.map(({ question, result, myChoice }) => {
         const winnerLabel =
