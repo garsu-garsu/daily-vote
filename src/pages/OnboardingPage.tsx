@@ -29,7 +29,7 @@ export function OnboardingPage({ onStart }: Props) {
     <div style={{ paddingBottom: 32 }}>
         {/* 앱 이름은 토스 상단 바가 이미 보여줘요 — 여기서 또 쓰면 헤더가 겹쳐 보여요. */}
       <Top
-        title={<Top.TitleParagraph size={26}>오늘의 질문에 투표해요</Top.TitleParagraph>}
+        title={<Top.TitleParagraph size={28}>오늘의 질문에 투표해요</Top.TitleParagraph>}
         subtitleBottom={
           <Top.SubtitleParagraph size={15}>
             3초 투표하고 전국의 취향을 확인해요
