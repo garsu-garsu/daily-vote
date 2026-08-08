@@ -17,6 +17,7 @@ import { fetchPublishedQuestions, fetchTodayQuestion } from "../data/questions";
 import { fetchMyVotes, submitVote } from "../data/votes";
 import { fetchResult, fetchResultNow } from "../data/results";
 import { shareResult } from "../data/share";
+import { hasAgreedNotify, isNotifySupported, requestNotify } from "../lib/notify";
 import type { Choice, Profile, Question, VoteResult } from "../types";
 
 interface Props {
@@ -192,6 +193,8 @@ export function TodayPage({ profile, onLogin }: Props) {
 
           <ShareCta onShare={handleShare} />
 
+          <NotifyCard />
+
           {!detail && (
             <Button display="full" size="large" color="dark" variant="weak" onClick={handleWatchAd}>
               {ad.ready ? "광고 보고 연령대·성별 분포까지 보기" : "연령대·성별 분포까지 보기"}
@@ -258,6 +261,53 @@ function ShareCta({ onShare }: { onShare: () => void }) {
       </div>
       <Button display="full" size="large" onClick={onShare}>
         결과 카드 공유하기
+      </Button>
+    </div>
+  );
+}
+
+/** 매일 오후 9시 알림 동의 카드. */
+function NotifyCard() {
+  const toast = useToast();
+  const [agreed, setAgreed] = useState(hasAgreedNotify);
+
+  if (!isNotifySupported()) return null;
+
+  const onNotify = async () => {
+    try {
+      const result = await requestNotify();
+      if (result === "agreementRejected") return;
+      setAgreed(true);
+      toast.openToast(
+        result === "alreadyAgreed" ? "이미 알림을 받고 있어요." : "매일 오후 9시에 알려드릴게요.",
+      );
+    } catch {
+      toast.openToast("알림을 설정하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    }
+  };
+
+  return (
+    <div
+      style={{
+        padding: 16,
+        borderRadius: 16,
+        backgroundColor: colors.grey50,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+      }}
+    >
+      <span style={{ fontSize: 14, fontWeight: 700, color: colors.grey800 }}>
+        매일 오후 9시에 오늘의 질문 알려드릴까요?
+      </span>
+      <Button
+        display="full"
+        size="medium"
+        variant={agreed ? "fill" : "weak"}
+        color={agreed ? "primary" : "dark"}
+        onClick={() => void onNotify()}
+      >
+        {agreed ? "알림 받는 중" : "알림 받기"}
       </Button>
     </div>
   );
