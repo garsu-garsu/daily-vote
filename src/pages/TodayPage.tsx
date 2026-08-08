@@ -2,7 +2,7 @@ import { Badge, Button, Loader, useToast } from "@toss/tds-mobile";
 import { colors } from "@toss/tds-colors";
 import { useCallback, useEffect, useState } from "react";
 import { ResultView } from "../components/ResultView";
-import { ResultBanner } from "../components/ResultBanner";
+import { ImageResultBanner, ResultBanner } from "../components/ResultBanner";
 import { useAdGate } from "../hooks/useAdGate";
 import { useInterstitial } from "../hooks/useInterstitial";
 import { EVENT, track } from "../lib/analytics";
@@ -223,6 +223,9 @@ export function TodayPage({ profile, onLogin }: Props) {
           <div style={{ fontSize: 12, color: colors.grey400, lineHeight: 1.6 }}>
             결과는 이 투표에 참여한 분들의 응답을 모은 것이라 실제 여론과는 달라요.
           </div>
+
+          {/* 이미지 강조형 배너 — 본문 스크롤의 맨 끝. 끝까지 내려본 사람에게만 보여요. */}
+          <ImageResultBanner />
         </>
       )}
     </div>

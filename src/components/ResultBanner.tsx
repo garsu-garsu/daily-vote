@@ -1,7 +1,7 @@
 import { TossAds } from "@apps-in-toss/web-framework";
 import { useEffect, useRef, useState } from "react";
 
-import { AD_GROUP_ID_BANNER } from "../lib/env";
+import { AD_GROUP_ID_BANNER, AD_GROUP_ID_BANNER_IMAGE } from "../lib/env";
 
 // 결과 화면 하단 배너 (WebView). 미지원(브라우저/구버전)·미설정이면 아무것도 렌더링하지 않아요.
 // 참고문서: https://developers-apps-in-toss.toss.im/bedrock/reference/framework/광고/BannerAd.md
@@ -11,7 +11,15 @@ import { AD_GROUP_ID_BANNER } from "../lib/env";
  */
 const REFRESH_MS = 30_000;
 
-export function ResultBanner() {
+export function ResultBanner({
+  adGroupId = AD_GROUP_ID_BANNER,
+  minHeight = 96,
+}: {
+  /** 비우면 기존 문구형 지면을 써요. */
+  adGroupId?: string;
+  /** 자리 높이(px). 높이 0 이면 광고가 렌더링되지 않아요. */
+  minHeight?: number;
+} = {}) {
   const ref = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
   // 이 값이 바뀔 때마다 아래 effect 가 다시 돌면서 배너를 새로 붙여요.
@@ -19,7 +27,7 @@ export function ResultBanner() {
 
   // SDK 초기화
   useEffect(() => {
-    if (AD_GROUP_ID_BANNER === "") return;
+    if (adGroupId === "") return;
     try {
       if (!TossAds.initialize.isSupported()) return;
       TossAds.initialize({
@@ -36,10 +44,10 @@ export function ResultBanner() {
 
   // 배너 부착
   useEffect(() => {
-    if (!ready || ref.current == null || AD_GROUP_ID_BANNER === "") return;
+    if (!ready || ref.current == null || adGroupId === "") return;
     let attached: { destroy: () => void } | undefined;
     try {
-      attached = TossAds.attachBanner(AD_GROUP_ID_BANNER, ref.current, {
+      attached = TossAds.attachBanner(adGroupId, ref.current, {
         theme: "auto",
         tone: "grey",
         variant: "card",
@@ -78,6 +86,14 @@ export function ResultBanner() {
     };
   }, []);
 
-  if (AD_GROUP_ID_BANNER === "") return null;
-  return <div ref={ref} style={{ width: "100%", minHeight: 96 }} />;
+  if (adGroupId === "") return null;
+  return <div ref={ref} style={{ width: "100%", minHeight }} />;
+}
+
+/**
+ * 이미지 강조형 배너 — 본문 스크롤의 맨 아래에 붙여요.
+ * 위쪽 문구형 배너와 달리 끝까지 내려야 보여요.
+ */
+export function ImageResultBanner() {
+  return <ResultBanner adGroupId={AD_GROUP_ID_BANNER_IMAGE} minHeight={200} />;
 }

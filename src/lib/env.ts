@@ -14,6 +14,10 @@ export const AD_GROUP_ID_INTERSTITIAL =
 /** 배너 광고 그룹 ID. 비어있으면 배너를 렌더링하지 않아요. */
 export const AD_GROUP_ID_BANNER = import.meta.env.VITE_AD_GROUP_ID_BANNER ?? "";
 
+/** 이미지 강조형 배너 광고 그룹 ID. 비어있으면 렌더링하지 않아요. */
+export const AD_GROUP_ID_BANNER_IMAGE =
+  import.meta.env.VITE_AD_GROUP_ID_BANNER_IMAGE ?? "";
+
 /** 알림 수신 동의 템플릿 코드. 비어있으면 동의 요청을 건너뛰어요. */
 export const NOTIFY_TEMPLATE_CODE =
   import.meta.env.VITE_NOTIFY_TEMPLATE_CODE ?? "";
