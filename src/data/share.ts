@@ -2,7 +2,7 @@ import { getTossShareLink, share } from "@apps-in-toss/web-framework";
 
 import { isInTossApp } from "../lib/tossEnv";
 
-// granite.config.ts 의 appName·icon 과 맞춰야 해요. ("intoss://" 로 시작하지 않으면 링크가 안 만들어져요)
+// apps-in-toss.config.ts 의 appName 과 맞춰야 해요. ("intoss://" 로 시작하지 않으면 링크가 안 만들어져요)
 const DEEP_LINK = "intoss://daily-vote";
 const OG_IMAGE =
   "https://static.toss.im/appsintoss/13203/20210dfe-27e2-4af5-912b-49087a57c4be.png";
