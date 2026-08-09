@@ -1,6 +1,6 @@
 import { Badge, Button, Loader, useToast } from "@toss/tds-mobile";
 import { colors } from "@toss/tds-colors";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type RefObject } from "react";
 import { ResultView } from "../components/ResultView";
 import { ImageResultBanner, ResultBanner } from "../components/ResultBanner";
 import { useAdGate } from "../hooks/useAdGate";
@@ -23,9 +23,11 @@ import type { Choice, Profile, Question, VoteResult } from "../types";
 interface Props {
   profile: Profile | null;
   onLogin: () => Promise<void>;
+  /** 첫 실행 코치마크가 짚어줄 투표 영역 — App이 넘겨줘요. */
+  voteAreaRef?: RefObject<HTMLDivElement>;
 }
 
-export function TodayPage({ profile, onLogin }: Props) {
+export function TodayPage({ profile, onLogin, voteAreaRef }: Props) {
   const toast = useToast();
   const ad = useAdGate();
   const showInterstitial = useInterstitial();
@@ -160,7 +162,9 @@ export function TodayPage({ profile, onLogin }: Props) {
       </h2>
 
       {myChoice == null ? (
-        <VoteButtons question={question} onVote={handleVote} />
+        <div ref={voteAreaRef}>
+          <VoteButtons question={question} onVote={handleVote} />
+        </div>
       ) : result == null ? (
         <div
           style={{
