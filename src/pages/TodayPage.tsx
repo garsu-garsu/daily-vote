@@ -78,7 +78,7 @@ export function TodayPage({ profile, onLogin, voteAreaRef }: Props) {
         const r = await fetchResult(q.id).catch(() => null);
         setResult(r ?? (await fetchResultNow(q.id).catch(() => null)));
         setDetail(true);
-        showInterstitial();
+        showInterstitial("result");
       } else if (choice != null) {
         // 이미 투표했으면 지금까지 모인 전국 결과를 바로 보여줘요.
         setResult(await fetchResultNow(q.id).catch(() => null));
@@ -280,6 +280,7 @@ function NotifyCard() {
   const onNotify = async () => {
     try {
       const result = await requestNotify();
+      track(EVENT.notifyConsent, { result });
       if (result === "agreementRejected") return;
       setAgreed(true);
       toast.openToast(

@@ -34,6 +34,9 @@ export const EVENT = {
   voteCast: "vote_cast", // { question_id, choice }
   resultViewed: "result_viewed", // { question_id, gate: 'ad' | 'share' | 'natural' }
   adRewarded: "ad_rewarded", // { context }
+  adInterstitial: "ad_interstitial_shown", // { context }
+  adBannerImpression: "ad_banner_impression",
   shareCompleted: "share_completed", // { context }
+  notifyConsent: "notify_consent", // { result }
   loginUpsellClick: "login_upsell_click",
 } as const;

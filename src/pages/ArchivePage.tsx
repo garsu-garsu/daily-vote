@@ -38,7 +38,7 @@ export function ArchivePage() {
         past.map((q, i) => ({ question: q, result: results[i], myChoice: votes[q.id] })),
       );
       setLoading(false);
-      if (past.length > 0) showInterstitial(); // 지난 결과 화면 진입 → 전면 1회
+      if (past.length > 0) showInterstitial("archive"); // 지난 결과 화면 진입 → 전면 1회
     })();
     return () => {
       alive = false;

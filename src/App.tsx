@@ -5,11 +5,13 @@ import "./App.css";
 import { CoachMark } from "./components/CoachMark";
 import { useOnboarding } from "./hooks/useOnboarding";
 import { useSession } from "./hooks/useSession";
+import { trackScreen } from "./lib/analytics";
 import { TodayPage } from "./pages/TodayPage";
 import { ArchivePage } from "./pages/ArchivePage";
 import { ReportPage } from "./pages/ReportPage";
 
 const TABS = ["오늘 투표", "지난 결과", "내 성향"] as const;
+const TAB_SCREENS = ["today", "archive", "report"] as const;
 
 function App() {
   const [tab, setTab] = useState(0); // 0 = 오늘 투표
@@ -24,6 +26,10 @@ function App() {
     { ref: tabRef, message: "지난 투표는 '지난 결과'에서, 내 성향은 '내 리포트'에서 볼 수 있어요" },
   ];
   const tour = useOnboarding(tourSteps.length);
+
+  useEffect(() => {
+    trackScreen(TAB_SCREENS[tab]);
+  }, [tab]);
 
   // 창 전체 클릭으로 다음 단계 — 건너뛰기 버튼 클릭은 여기서 가로채지 않고 그대로 통과시켜요.
   useEffect(() => {
